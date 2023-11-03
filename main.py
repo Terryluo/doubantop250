@@ -21,9 +21,9 @@ FIND_BRIEFINTRO = re.compile(r'<p class="">(.*?)</p>', re.S)
 def main():
     baseurl = 'https://movie.douban.com/top250?start='
     datalist = getdata(baseurl)
-    savepath = ''
-    savedata(savepath)
-    print(f'Hi')  # Press Ctrl+F8 to toggle the breakpoint.
+    savepath = 'doubantop250_2023_Nov.xls'
+    savedata(savepath, datalist)
+    print('Web Crawling Finished')  # Press Ctrl+F8 to toggle the breakpoint.
 
 
 # getting data from internet
@@ -83,7 +83,6 @@ def getdata(baseurl):
 
             datalist.append(data)
 
-    print(datalist)
     return datalist
 
 
@@ -107,8 +106,20 @@ def geturl(url):
 
 
 # Save data to local
-def savedata(savepath):
+def savedata(savepath, datalist):
     print('save the data to local', savepath)
+    workbook = xlwt.Workbook(encoding='utf-8')
+    worksheet = workbook.add_sheet('doubantop250')
+
+    firstRow = ('Href', 'Image', 'Chinese Title', 'Foreign Title', 'Rating', 'Rate Number', 'Inq', 'Brief Introduction')
+    for i in range(0, len(firstRow)):
+        worksheet.write(0, i, firstRow[i])
+
+    for i in range(0, len(datalist)):
+        for j in range(0, len(datalist[i])):
+            worksheet.write(i + 1, j, datalist[i][j])
+
+    workbook.save(savepath)
 
 
 # Press the green button in the gutter to run the script.
