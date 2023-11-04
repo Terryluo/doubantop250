@@ -3,12 +3,13 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
-from bs4 import BeautifulSoup  # web page analysis
 import re  # Regular express analysis
-import sys
-import urllib.error, urllib.request  # setURL, obtain the web content
+import sqlite3  # SQLite database operation
+import urllib.error  # setURL, obtain the web content
+import urllib.request
+
 import xlwt  # excel operation
-import sqlite3 # SQLite database operation
+from bs4 import BeautifulSoup  # web page analysis
 
 FIND_HREF = re.compile(r'<a href="(.*?)">')
 FIND_IMAGE = re.compile(r'<img.*src="(.*?)"', re.S)
@@ -17,38 +18,47 @@ FIND_RATING = re.compile(r'<span class="rating_num" property="v:average">(.*?)</
 FIND_RATENUMBER = re.compile(r'<span>(\d*)人评价</span>')
 FIND_INQ = re.compile(r'<span class="inq">(.*?)</span>')
 FIND_BRIEFINTRO = re.compile(r'<p class="">(.*?)</p>', re.S)
+SAVING_LOCATION = 'remote'  # two values: local / remote
 
 
 def main():
     baseurl = 'https://movie.douban.com/top250?start='
     datalist = getdata(baseurl)
+    if len(datalist) == 0:  # If we did not successfully obtain the information
+        print('Web Crawling failed')
+        return
 
-    # save data to the excel
-    # savepath = 'doubantop250_2023_Nov.xls'
-    # savedata(savepath, datalist)
-
-    # save data to the database using SQLite
-    database_save_path: str = 'doubantop250.db'
-    save_data_to_database(database_save_path, datalist)
+    if SAVING_LOCATION == 'local':
+        # save data to the excel
+        local_save_path = 'doubantop250_2023_Nov.xls'
+        save_data_to_local(local_save_path, datalist)
+    elif SAVING_LOCATION == 'remote':
+        # save data to the database using SQLite
+        database_save_path: str = 'doubantop250.db'
+        # database_save_path: str = 'test.db' # for testing the operation
+        save_data_to_database(database_save_path, datalist)
+    else:
+        print('Saving direction is not defined')
     print('Web Crawling Finished')  # Press Ctrl+F8 to toggle the breakpoint.
 
 
 # getting data from internet
 def getdata(baseurl):
     datalist = []
-    print('getting the data from internet', baseurl)
     for page in range(10):
         url = baseurl + str(page * 25)
+        print('Getting the data from internet', url)
         html = geturl(url)
 
         # analysis the page
         bs = BeautifulSoup(html, "html.parser")
         for item in bs.find_all('div', class_='item'):
-            data = [] # save all the information from web crawling
-            item = str(item) # change to string so that we can use it in findall() method
+            data = []  # save all the information from web crawling
+            item = str(item)  # change to string so that we can use it in findall() method
 
             # processing href
-            herf = re.findall(FIND_HREF, item)[0] # we have to ask for the string item inside, otherwise we will get a list
+            herf = re.findall(FIND_HREF, item)[
+                0]  # we have to ask for the string item inside, otherwise we will get a list
             data.append(herf)
 
             # processing image
@@ -56,10 +66,10 @@ def getdata(baseurl):
             data.append(image)
 
             # processing title
-            titles = re.findall(FIND_TITLE, item) # may received one or two titles
+            titles = re.findall(FIND_TITLE, item)  # may received one or two titles
             if len(titles) == 2:
                 chtitle = titles[0]
-                fortitle = titles[1].replace('\xa0','').replace('/', '')
+                fortitle = titles[1].replace('\xa0', '').replace('/', '')
                 data.append(chtitle)
                 data.append(fortitle)
             else:
@@ -93,10 +103,13 @@ def getdata(baseurl):
     return datalist
 
 
-
 def geturl(url):
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
+        'User-Agent':
+            '''
+                Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)
+                Chrome/118.0.0.0 Safari/537.36
+            '''
     }
     request = urllib.request.Request(url, headers=headers)
     html = ""
@@ -109,32 +122,67 @@ def geturl(url):
             print(e.code)
         if hasattr(e, "reason"):
             print(e.reason)
+        print('Failed to obtain the url!')
+        return
+    print('Successfully obtained the page information!')
     return html
 
 
 # Save data to local
-def savedata(savepath, datalist):
-    print('save the data to local', savepath)
+def save_data_to_local(local_save_path, datalist):
+    print('Saving data to local:', local_save_path)
+    # create a workbook
     workbook = xlwt.Workbook(encoding='utf-8')
+    # create a worksheet
     worksheet = workbook.add_sheet('doubantop250')
 
-    firstRow = ('Href', 'Image', 'Chinese Title', 'Foreign Title', 'Rating', 'Rate Number', 'Inq', 'Brief Introduction')
-    for i in range(0, len(firstRow)):
-        worksheet.write(0, i, firstRow[i])
+    # create first row
+    first_row = ('Href', 'Image', 'Chinese Title', 'Foreign Title', 'Rating', 'Rate Number', 'Inq', 'Brief Introduction')
+    for i in range(0, len(first_row)):
+        worksheet.write(0, i, first_row[i])
 
+    # insert the information into the other rows
     for i in range(0, len(datalist)):
         for j in range(0, len(datalist[i])):
             worksheet.write(i + 1, j, datalist[i][j])
 
-    workbook.save(savepath)
+    workbook.save(local_save_path)
 
 
 def save_data_to_database(database_save_path, datalist):
+    print('Saving data to database:', database_save_path)
     init_database(database_save_path)
-    pass
+    connect = sqlite3.connect(database_save_path)
+    cursor = connect.cursor()
+    try:
+        for data in datalist:
+            for index in range(len(data)):
+                if index == 4 or index == 5:
+                    continue
+                data[index] = '"' + data[index] + '"'  # become a string so that we could insert into database's column
+            sql = '''
+                insert into doubantop250 (
+                href, image, chinese_title, foreign_title, rating, rating_number, inq, brief_intro
+                ) values(%s) 
+            ''' % ",".join(data)
+            cursor.execute(sql)
+            connect.commit()
+    except Exception as e:
+        print('We got exception while inserting value...')
+        if hasattr(e, "code"):
+            print(e.code)
+        if hasattr(e, "reason"):
+            print(e.reason)
+    finally:
+        cursor.close()
+        connect.close()
+
 
 def init_database(database_save_path):
+    # connect to database though sqlite3, create database if it does not exist
     connect = sqlite3.connect(database_save_path)
+
+    # create cursor to execute sql command
     cursor = connect.cursor()
 
     create_table = '''
@@ -152,11 +200,20 @@ def init_database(database_save_path):
             brief_intro text -- brief introduction of the cast
         )
     '''
-
-    cursor.execute(create_table)
-    connect.commit()
-    connect.close()
-
+    try:
+        # execute sql command and commit to database
+        cursor.execute(create_table)
+        connect.commit()
+    except Exception as e:
+        print('We got exception while creating table...')
+        if hasattr(e, "code"):
+            print(e.code)
+        if hasattr(e, "reason"):
+            print(e.reason)
+    finally:
+        # close the cursor and connect
+        cursor.close()
+        connect.close()
 
 
 # Press the green button in the gutter to run the script.
