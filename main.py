@@ -8,7 +8,7 @@ import re  # Regular express analysis
 import sys
 import urllib.error, urllib.request  # setURL, obtain the web content
 import xlwt  # excel operation
-import sqlite3  # SQLite database operation
+import sqlite3 # SQLite database operation
 
 FIND_HREF = re.compile(r'<a href="(.*?)">')
 FIND_IMAGE = re.compile(r'<img.*src="(.*?)"', re.S)
@@ -18,11 +18,18 @@ FIND_RATENUMBER = re.compile(r'<span>(\d*)人评价</span>')
 FIND_INQ = re.compile(r'<span class="inq">(.*?)</span>')
 FIND_BRIEFINTRO = re.compile(r'<p class="">(.*?)</p>', re.S)
 
+
 def main():
     baseurl = 'https://movie.douban.com/top250?start='
     datalist = getdata(baseurl)
-    savepath = 'doubantop250_2023_Nov.xls'
-    savedata(savepath, datalist)
+
+    # save data to the excel
+    # savepath = 'doubantop250_2023_Nov.xls'
+    # savedata(savepath, datalist)
+
+    # save data to the database using SQLite
+    database_save_path: str = 'doubantop250.db'
+    save_data_to_database(database_save_path, datalist)
     print('Web Crawling Finished')  # Press Ctrl+F8 to toggle the breakpoint.
 
 
@@ -120,6 +127,36 @@ def savedata(savepath, datalist):
             worksheet.write(i + 1, j, datalist[i][j])
 
     workbook.save(savepath)
+
+
+def save_data_to_database(database_save_path, datalist):
+    init_database(database_save_path)
+    pass
+
+def init_database(database_save_path):
+    connect = sqlite3.connect(database_save_path)
+    cursor = connect.cursor()
+
+    create_table = '''
+        create table if not exists doubantop250
+            -- a table of top 250 movies in douban
+        (
+            id integer primary key autoincrement, -- id of the list
+            href text not null, -- href of the movie introduction
+            image, -- href of the movie image
+            chinese_title, -- the chinese title of the movie
+            foreign_title, -- the foreign title of the movie
+            rating integer, -- the rate (max 10, min 1) of the movie
+            rating_number integer, -- number of rating for the movie
+            inq text, -- conclude the movie in one word
+            brief_intro text -- brief introduction of the cast
+        )
+    '''
+
+    cursor.execute(create_table)
+    connect.commit()
+    connect.close()
+
 
 
 # Press the green button in the gutter to run the script.
